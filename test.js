@@ -1,6 +1,6 @@
 // Run: node test.js
 const assert = require("assert");
-const { buildSummary, statusFromIconClass, indentFor } = require("./content.js");
+const { buildSummary, statusFromIconClass, indentFor, htmlIndentFor } = require("./content.js");
 
 assert.equal(statusFromIconClass("octicon octicon-git-merge"), "merged");
 assert.equal(statusFromIconClass("octicon-git-pull-request-draft"), "draft");
@@ -32,7 +32,10 @@ assert.equal(
 assert.ok(html.includes("<b>Stack #3456 summary</b>"));
 assert.ok(html.includes("<i>develop (trunk)</i>"));
 assert.ok(html.includes('<a href="https://x/pull/3419">fix(canvas): unify &lt;output&gt;</a> <i>#3419</i>'));
-assert.ok(html.includes("&nbsp;&nbsp;&nbsp;&nbsp;└──&nbsp;")); // indentation survives rich paste
+// HTML indents with one repeated character so every step is the same width
+assert.ok(html.includes("&nbsp;&nbsp;&nbsp;&nbsp;🟣 <a"));
+assert.equal(htmlIndentFor(0), "");
+assert.equal(htmlIndentFor(2).length, htmlIndentFor(1).length * 2);
 
 console.log("ok");
 

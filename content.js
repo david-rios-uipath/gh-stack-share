@@ -12,15 +12,25 @@ const STATUS_EMOJI = {
 
 const escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escapeAttr = (s) => escapeHtml(s).replace(/"/g, "&quot;");
-const nbsp = (s) => s.replace(/ /g, "&nbsp;");
 
 const label = (row) => row.title || row.branch || `#${row.number}`;
 
 // Rows arrive trunk-first. A stack is linear, so each row is the sole child of
 // the one before it: indentation grows by one level per row.
+
+/** Monospace tree for the plain-text flavor, where the glyphs line up. */
 function indentFor(i) {
   return i === 0 ? "" : "    ".repeat(i - 1) + "└── ";
 }
+
+/**
+ * The HTML flavor lands in proportional-font targets like Slack, where a
+ * box-drawing connector and four spaces are different widths — so the step
+ * between the first two rows reads differently from every other step. Indenting
+ * with a single repeated character keeps it uniform.
+ */
+const HTML_INDENT = "&nbsp;".repeat(4);
+const htmlIndentFor = (i) => HTML_INDENT.repeat(i);
 
 function renderText(rows, heading) {
   const lines = [heading];
@@ -38,7 +48,7 @@ function renderHtml(rows, heading) {
   const lines = [`<b>${escapeHtml(heading)}</b>`];
   rows.forEach((row, i) => {
     const name = escapeHtml(label(row));
-    let line = nbsp(indentFor(i)) + `${STATUS_EMOJI[row.status] || STATUS_EMOJI.none} `;
+    let line = htmlIndentFor(i) + `${STATUS_EMOJI[row.status] || STATUS_EMOJI.none} `;
     if (row.isTrunk) {
       line += `<i>${name} (trunk)</i>`;
     } else if (row.url) {
@@ -323,5 +333,5 @@ function init() {
 if (typeof document !== "undefined" && document.body) init();
 
 if (typeof module !== "undefined") {
-  module.exports = { buildSummary, statusFromIconClass, indentFor, STATUS_EMOJI };
+  module.exports = { buildSummary, statusFromIconClass, indentFor, htmlIndentFor, STATUS_EMOJI };
 }
