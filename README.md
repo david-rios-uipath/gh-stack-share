@@ -28,6 +28,8 @@ Status: 🟣 merged · ✅ approved · 🔴 closed · 📝 draft · 🟢 open ·
 Right-click the extension → **Options** (or the Details page in
 `chrome://extensions`):
 
+<img width="428" height="264" alt="image" src="https://github.com/user-attachments/assets/679a81e4-d1f7-4593-96ca-5a2fda8ca547" />
+
 - **Include the trunk branch** — off by default. Check it to prefix the summary
   with the trunk row.
 - **Show pull request numbers** — off by default. Check it to append each pull
