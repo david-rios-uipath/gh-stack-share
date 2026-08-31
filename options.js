@@ -3,7 +3,7 @@ const FIELDS = {
   "show-pr-numbers": "showPrNumbers",
 };
 
-const defaults = Object.fromEntries(Object.values(FIELDS).map((key) => [key, true]));
+const defaults = Object.fromEntries(Object.values(FIELDS).map((key) => [key, false]));
 
 chrome.storage.sync.get(defaults, (stored) => {
   for (const [id, key] of Object.entries(FIELDS)) {

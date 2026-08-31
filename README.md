@@ -28,10 +28,10 @@ Status: 🟣 merged · ✅ approved · 🔴 closed · 📝 draft · 🟢 open ·
 Right-click the extension → **Options** (or the Details page in
 `chrome://extensions`):
 
-- **Include the trunk branch** — on by default. Uncheck to start the copied
-  summary at the first pull request.
-- **Show pull request numbers** — on by default. Uncheck to drop the trailing
-  number from each line.
+- **Include the trunk branch** — off by default. Check it to prefix the summary
+  with the trunk row.
+- **Show pull request numbers** — off by default. Check it to append each pull
+  request number to its line.
 
 ## Test
 

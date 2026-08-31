@@ -60,7 +60,7 @@ function renderHtml(rows, heading, showNumbers) {
   return lines.join("<br>\n");
 }
 
-function buildSummary(rows, heading, { showNumbers = true } = {}) {
+function buildSummary(rows, heading, { showNumbers = false } = {}) {
   return {
     text: renderText(rows, heading, showNumbers),
     html: renderHtml(rows, heading, showNumbers),
@@ -72,7 +72,7 @@ function buildSummary(rows, heading, { showNumbers = true } = {}) {
 // Read eagerly and kept in sync, so the click handler stays synchronous and
 // keeps its user activation for the clipboard write.
 
-const settings = { includeTrunk: true, showPrNumbers: true };
+const settings = { includeTrunk: false, showPrNumbers: false };
 
 if (typeof chrome !== "undefined" && chrome.storage) {
   chrome.storage.sync.get(settings, (stored) => Object.assign(settings, stored));

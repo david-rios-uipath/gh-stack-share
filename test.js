@@ -17,7 +17,7 @@ const rows = [
   { number: "3419", branch: "fix/a", title: "fix(canvas): unify <output>", url: "https://x/pull/3419", status: "merged" },
   { number: "3423", branch: "fix/b", title: "", url: "https://x/pull/3423", status: "draft" },
 ];
-const { text, html } = buildSummary(rows, "Stack #3456 summary");
+const { text, html } = buildSummary(rows, "Stack #3456 summary", { showNumbers: true });
 
 assert.equal(
   text,
@@ -49,6 +49,7 @@ console.log("ok (icon labels)");
 const approved = buildSummary(
   [{ number: "3455", branch: "feat/x", title: "feat: thing", url: "https://x/pull/3455", status: "approved" }],
   "Stack #1 summary",
+  { showNumbers: true },
 );
 assert.ok(approved.text.includes("✅ feat: thing #3455"));
 assert.ok(approved.html.includes('✅ <a href="https://x/pull/3455">feat: thing</a>'));
@@ -61,6 +62,7 @@ const noTrunk = buildSummary(
     { number: "3422", branch: "b", title: "second", url: "https://x/pull/3422", status: "open" },
   ],
   "Stack #1 summary",
+  { showNumbers: true },
 );
 assert.equal(
   noTrunk.text,
@@ -79,3 +81,9 @@ assert.ok(noNumbers.text.includes("🟢 first  ·  https://x/pull/3419"));
 assert.equal(noNumbers.html.includes("<i>#3419</i>"), false);
 assert.ok(noNumbers.html.includes('<a href="https://x/pull/3419">first</a>'));
 console.log("ok (no numbers)");
+
+// numbers are off unless asked for
+assert.ok(
+  !buildSummary([{ number: "9", branch: "a", title: "t", url: "https://x/pull/9", status: "open" }], "H").text.includes("#9 "),
+);
+console.log("ok (numbers default off)");
