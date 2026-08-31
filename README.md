@@ -16,8 +16,6 @@ Stack #3456 summary
 
 Status: 🟣 merged · ✅ approved · 🔴 closed · 📝 draft · 🟢 open · ⚪ no PR.
 
-Format follows [`us share`](https://github.com/UiPath/stacked-prs/pull/101).
-
 ## Install
 
 1. `chrome://extensions` → enable **Developer mode**
