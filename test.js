@@ -67,3 +67,15 @@ assert.equal(
   ["Stack #1 summary", "🟢 first #3419  ·  https://x/pull/3419", "└── 🟢 second #3422  ·  https://x/pull/3422"].join("\n"),
 );
 console.log("ok (no trunk)");
+
+// numbers can be dropped from both flavors; the link still points at the PR
+const noNumbers = buildSummary(
+  [{ number: "3419", branch: "a", title: "first", url: "https://x/pull/3419", status: "open" }],
+  "Stack #1 summary",
+  { showNumbers: false },
+);
+assert.ok(!noNumbers.text.includes("#3419  ·"));
+assert.ok(noNumbers.text.includes("🟢 first  ·  https://x/pull/3419"));
+assert.equal(noNumbers.html.includes("<i>#3419</i>"), false);
+assert.ok(noNumbers.html.includes('<a href="https://x/pull/3419">first</a>'));
+console.log("ok (no numbers)");

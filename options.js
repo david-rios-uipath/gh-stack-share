@@ -1,9 +1,14 @@
-const checkbox = document.getElementById("include-trunk");
+const FIELDS = {
+  "include-trunk": "includeTrunk",
+  "show-pr-numbers": "showPrNumbers",
+};
 
-chrome.storage.sync.get({ includeTrunk: true }, ({ includeTrunk }) => {
-  checkbox.checked = includeTrunk;
-});
+const defaults = Object.fromEntries(Object.values(FIELDS).map((key) => [key, true]));
 
-checkbox.addEventListener("change", () => {
-  chrome.storage.sync.set({ includeTrunk: checkbox.checked });
+chrome.storage.sync.get(defaults, (stored) => {
+  for (const [id, key] of Object.entries(FIELDS)) {
+    const box = document.getElementById(id);
+    box.checked = stored[key];
+    box.addEventListener("change", () => chrome.storage.sync.set({ [key]: box.checked }));
+  }
 });

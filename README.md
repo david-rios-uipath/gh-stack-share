@@ -30,6 +30,8 @@ Right-click the extension → **Options** (or the Details page in
 
 - **Include the trunk branch** — on by default. Uncheck to start the copied
   summary at the first pull request.
+- **Show pull request numbers** — on by default. Uncheck to drop the trailing
+  `#3419` from each line.
 
 ## Test
 

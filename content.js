@@ -32,37 +32,39 @@ function indentFor(i) {
 const HTML_INDENT = "&nbsp;".repeat(4);
 const htmlIndentFor = (i) => HTML_INDENT.repeat(i);
 
-function renderText(rows, heading) {
+function renderText(rows, heading, showNumbers) {
   const lines = [heading];
   rows.forEach((row, i) => {
     let line = `${indentFor(i)}${STATUS_EMOJI[row.status] || STATUS_EMOJI.none} ${label(row)}`;
     if (row.isTrunk) line += " (trunk)";
-    if (row.number) line += ` #${row.number}`;
+    if (row.number && showNumbers) line += ` #${row.number}`;
     if (row.url) line += `  ·  ${row.url}`;
     lines.push(line);
   });
   return lines.join("\n");
 }
 
-function renderHtml(rows, heading) {
+function renderHtml(rows, heading, showNumbers) {
   const lines = [`<b>${escapeHtml(heading)}</b>`];
   rows.forEach((row, i) => {
     const name = escapeHtml(label(row));
     let line = htmlIndentFor(i) + `${STATUS_EMOJI[row.status] || STATUS_EMOJI.none} `;
     if (row.isTrunk) {
       line += `<i>${name} (trunk)</i>`;
-    } else if (row.url) {
-      line += `<a href="${escapeAttr(row.url)}">${name}</a> <i>#${row.number}</i>`;
     } else {
-      line += row.number ? `${name} <i>#${row.number}</i>` : name;
+      const linked = row.url ? `<a href="${escapeAttr(row.url)}">${name}</a>` : name;
+      line += row.number && showNumbers ? `${linked} <i>#${row.number}</i>` : linked;
     }
     lines.push(line);
   });
   return lines.join("<br>\n");
 }
 
-function buildSummary(rows, heading) {
-  return { text: renderText(rows, heading), html: renderHtml(rows, heading) };
+function buildSummary(rows, heading, { showNumbers = true } = {}) {
+  return {
+    text: renderText(rows, heading, showNumbers),
+    html: renderHtml(rows, heading, showNumbers),
+  };
 }
 
 // --- Settings ---------------------------------------------------------------
@@ -70,7 +72,7 @@ function buildSummary(rows, heading) {
 // Read eagerly and kept in sync, so the click handler stays synchronous and
 // keeps its user activation for the clipboard write.
 
-const settings = { includeTrunk: true };
+const settings = { includeTrunk: true, showPrNumbers: true };
 
 if (typeof chrome !== "undefined" && chrome.storage) {
   chrome.storage.sync.get(settings, (stored) => Object.assign(settings, stored));
@@ -280,7 +282,7 @@ function onShareClick(event) {
   }, 150);
   const summary = withApprovals(visible).then((enriched) => {
     clearTimeout(pending);
-    return buildSummary(enriched, heading);
+    return buildSummary(enriched, heading, { showNumbers: settings.showPrNumbers });
   });
   const blob = (type, pick) =>
     summary.then((s) => new Blob([pick(s)], { type }));

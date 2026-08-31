@@ -11,8 +11,10 @@
         font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: #1f2328;
       }
+      label:first-of-type { margin-top: 0 }
       label {
         display: flex;
+        margin-top: 12px;
         gap: 8px;
         align-items: baseline;
       }
@@ -30,6 +32,9 @@
   <body>
     <label><input type="checkbox" id="include-trunk" /> Include the trunk branch</label>
     <p>Uncheck to start the copied summary at the first pull request.</p>
+
+    <label><input type="checkbox" id="show-pr-numbers" /> Show pull request numbers</label>
+    <p>Uncheck to drop the trailing <code>#3419</code> from each line.</p>
     <script src="options.js"></script>
   </body>
 </html>
