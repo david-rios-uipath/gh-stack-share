@@ -180,7 +180,6 @@ async function withApprovals(rows) {
 // --- Button -----------------------------------------------------------------
 
 const BUTTON_ID = "gh-stack-share-button";
-const TOOLTIP_ID = "gh-stack-share-tooltip";
 const LABEL_IDLE = "Copy stack summary";
 
 // octicon-copy-16
@@ -207,32 +206,30 @@ const icon = (paths, name, extra = "") =>
   `<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-${name} ${extra}" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align: text-bottom;">${paths}</svg>`;
 
 /**
- * Clones the existing header icon button (and its Primer tooltip) so ours
- * inherits the hashed classes and data-attributes verbatim — no style
- * guesswork, and it keeps matching when GitHub reskins the modal.
+ * Clones the existing header icon button so ours inherits Primer's hashed
+ * classes and data-attributes verbatim — no style guesswork, and it keeps
+ * matching when GitHub reskins the modal.
+ *
+ * The tooltip uses Primer CSS's `tooltipped` classes rather than a cloned
+ * TooltipV2 popover: TooltipV2 is positioned by React, so a clone opens at the
+ * viewport corner. `tooltipped` is pure CSS and renders identically.
  */
-function makeButton(sibling, tooltipSibling) {
+function makeButton(sibling) {
   const btn = document.createElement("button");
   btn.type = "button";
   if (sibling) {
     for (const attr of sibling.attributes) {
-      if (["id", "aria-label", "aria-labelledby", "type"].includes(attr.name)) continue;
+      if (["id", "aria-label", "aria-labelledby", "type", "class"].includes(attr.name)) continue;
       btn.setAttribute(attr.name, attr.value);
     }
+    btn.className = sibling.className;
   }
+  btn.classList.add("tooltipped", "tooltipped-s");
   btn.id = BUTTON_ID;
+  btn.setAttribute("aria-label", LABEL_IDLE);
   btn.innerHTML = icon(ICON_SHARE, "copy");
   btn.addEventListener("click", onShareClick);
-
-  const tooltip = tooltipSibling ? tooltipSibling.cloneNode(false) : null;
-  if (tooltip) {
-    tooltip.id = TOOLTIP_ID;
-    tooltip.textContent = LABEL_IDLE;
-    btn.setAttribute("aria-labelledby", TOOLTIP_ID);
-  } else {
-    btn.setAttribute("aria-label", LABEL_IDLE);
-  }
-  return { btn, tooltip };
+  return btn;
 }
 
 function onShareClick(event) {
@@ -278,11 +275,7 @@ function onShareClick(event) {
     );
 }
 
-function setLabel(btn, text) {
-  const tooltip = document.getElementById(TOOLTIP_ID);
-  if (tooltip) tooltip.textContent = text;
-  else btn.setAttribute("aria-label", text);
-}
+const setLabel = (btn, text) => btn.setAttribute("aria-label", text);
 
 function flash(btn, message) {
   setLabel(btn, message);
@@ -297,13 +290,8 @@ function inject(overlay) {
   const actions = overlay.querySelector('[class*="overlayHeaderActions"]');
   if (!actions || actions.querySelector(`#${BUTTON_ID}`)) return;
 
-  const { btn, tooltip } = makeButton(
-    actions.querySelector("button"),
-    actions.querySelector('[class*="Tooltip"]'),
-  );
   installSpinnerStyle();
-  actions.insertBefore(btn, actions.firstChild);
-  if (tooltip) btn.after(tooltip);
+  actions.insertBefore(makeButton(actions.querySelector("button")), actions.firstChild);
 
   prefetchApprovals(scrapeRows(overlay));
 }

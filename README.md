@@ -42,4 +42,6 @@ node test.js
   (`[class*="overlayHeader"]`) — GitHub's CSS-module class names are
   content-hashed and change between deploys.
 - The button clones the neighbouring "Unstack pull requests" icon button, so it
-  inherits GitHub's own styling and tooltip rather than approximating them.
+  inherits GitHub's own styling rather than approximating it. The tooltip uses
+  Primer CSS's `tooltipped` classes — Primer's React TooltipV2 is positioned in
+  JS, so a cloned one opens at the viewport corner.
