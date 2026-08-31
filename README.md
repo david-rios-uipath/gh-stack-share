@@ -33,9 +33,12 @@ node test.js
 
 ## Notes
 
-- Approval state isn't in the modal DOM. On click, each open PR's hovercard
-  partial (~5 KB, same-origin, uses your existing session) is fetched and
-  checked for the approved review badge. No token, works on private repos.
+- Approval state isn't in the modal DOM. Each open PR's hovercard partial
+  (~5 KB, same-origin, uses your existing session) is fetched and checked for
+  the approved review badge. No token, works on private repos.
+- Those fetches take ~480 ms in parallel, so they start when the modal opens
+  rather than on click; the copy is then instant. A spinner covers the case
+  where you click before the prefetch lands.
 - Per-branch diffstats are still omitted — they aren't reachable that cheaply.
 - Selectors use Primer's `data-component` attributes and partial class matches
   (`[class*="overlayHeader"]`) — GitHub's CSS-module class names are

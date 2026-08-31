@@ -135,22 +135,43 @@ function scrapeRows(overlay) {
 // (~5 KB) is fetched on click. Its review badge is a success-colored check
 // octicon when the PR is approved, and a dot or comment octicon otherwise.
 
+// Keyed by PR path. Populated when the modal opens so the ~480 ms of parallel
+// fetches is spent while the user is reading the stack, not after they click.
+// ponytail: cache lives for the page load — an approval landing mid-session
+// won't show until reload.
+const approvalCache = new Map();
+
+function isApproved(prPath) {
+  if (!approvalCache.has(prPath)) {
+    approvalCache.set(
+      prPath,
+      fetch(`${prPath}/hovercard`, { headers: { "x-requested-with": "XMLHttpRequest" } })
+        .then((res) => (res.ok ? res.text() : ""))
+        .then((html) => {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          return Boolean(doc.querySelector(".octicon-check.color-fg-success"));
+        })
+        // An unreachable hovercard leaves the PR as plain open rather than
+        // blocking the copy.
+        .catch(() => false),
+    );
+  }
+  return approvalCache.get(prPath);
+}
+
+const openPrPaths = (rows) =>
+  rows.filter((row) => row.status === "open" && row.url).map((row) => new URL(row.url).pathname);
+
+function prefetchApprovals(rows) {
+  for (const path of openPrPaths(rows)) isApproved(path);
+}
+
 async function withApprovals(rows) {
   await Promise.all(
     rows
       .filter((row) => row.status === "open" && row.url)
       .map(async (row) => {
-        try {
-          const res = await fetch(`${new URL(row.url).pathname}/hovercard`, {
-            headers: { "x-requested-with": "XMLHttpRequest" },
-          });
-          if (!res.ok) return;
-          const doc = new DOMParser().parseFromString(await res.text(), "text/html");
-          if (doc.querySelector(".octicon-check.color-fg-success")) row.status = "approved";
-        } catch {
-          // An unreachable hovercard leaves the PR as plain open rather than
-          // blocking the copy.
-        }
+        if (await isApproved(new URL(row.url).pathname)) row.status = "approved";
       }),
   );
   return rows;
@@ -165,12 +186,25 @@ const LABEL_IDLE = "Copy stack summary";
 // octicon-copy-16
 const ICON_SHARE =
   '<path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>';
+// octicon-sync-16
+const ICON_SPINNER =
+  '<path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"></path>';
 // octicon-check-16
 const ICON_CHECK =
   '<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>';
 
-const icon = (paths, name) =>
-  `<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-${name}" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align: text-bottom;">${paths}</svg>`;
+const SPIN_CLASS = "gh-stack-share-spin";
+
+function installSpinnerStyle() {
+  if (document.getElementById("gh-stack-share-style")) return;
+  const style = document.createElement("style");
+  style.id = "gh-stack-share-style";
+  style.textContent = `@keyframes ${SPIN_CLASS} { to { transform: rotate(360deg) } } .${SPIN_CLASS} { animation: ${SPIN_CLASS} 1s linear infinite }`;
+  document.head.append(style);
+}
+
+const icon = (paths, name, extra = "") =>
+  `<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-${name} ${extra}" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align: text-bottom;">${paths}</svg>`;
 
 /**
  * Clones the existing header icon button (and its Primer tooltip) so ours
@@ -216,7 +250,15 @@ function onShareClick(event) {
   }
 
   const heading = `${headingText(overlay)} summary`;
-  const summary = withApprovals(rows).then((enriched) => buildSummary(enriched, heading));
+  // Only show the spinner if the prefetch hasn't already landed.
+  const pending = setTimeout(() => {
+    setLabel(btn, "Copying\u2026");
+    btn.innerHTML = icon(ICON_SPINNER, "sync", SPIN_CLASS);
+  }, 150);
+  const summary = withApprovals(rows).then((enriched) => {
+    clearTimeout(pending);
+    return buildSummary(enriched, heading);
+  });
   const blob = (type, pick) =>
     summary.then((s) => new Blob([pick(s)], { type }));
 
@@ -236,16 +278,17 @@ function onShareClick(event) {
     );
 }
 
-function flash(btn, message) {
+function setLabel(btn, text) {
   const tooltip = document.getElementById(TOOLTIP_ID);
-  const setLabel = (text) => {
-    if (tooltip) tooltip.textContent = text;
-    else btn.setAttribute("aria-label", text);
-  };
-  setLabel(message);
+  if (tooltip) tooltip.textContent = text;
+  else btn.setAttribute("aria-label", text);
+}
+
+function flash(btn, message) {
+  setLabel(btn, message);
   btn.innerHTML = icon(ICON_CHECK, "check");
   setTimeout(() => {
-    setLabel(LABEL_IDLE);
+    setLabel(btn, LABEL_IDLE);
     btn.innerHTML = icon(ICON_SHARE, "copy");
   }, 1500);
 }
@@ -258,8 +301,11 @@ function inject(overlay) {
     actions.querySelector("button"),
     actions.querySelector('[class*="Tooltip"]'),
   );
+  installSpinnerStyle();
   actions.insertBefore(btn, actions.firstChild);
   if (tooltip) btn.after(tooltip);
+
+  prefetchApprovals(scrapeRows(overlay));
 }
 
 function init() {
