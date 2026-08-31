@@ -35,5 +35,8 @@ node test.js
 
 - Approval state and per-branch diffstats aren't in the modal DOM, so they're
   omitted. `us share` shows them because it has API access.
-- Scraping is anchored on the `#123 · branch` text, not on class names —
-  GitHub's are content-hashed and change between deploys.
+- Selectors use Primer's `data-component` attributes and partial class matches
+  (`[class*="overlayHeader"]`) — GitHub's CSS-module class names are
+  content-hashed and change between deploys.
+- The button clones the neighbouring "Unstack pull requests" icon button, so it
+  inherits GitHub's own styling and tooltip rather than approximating them.

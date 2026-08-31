@@ -35,3 +35,9 @@ assert.ok(html.includes('<a href="https://x/pull/3419">fix(canvas): unify &lt;ou
 assert.ok(html.includes("&nbsp;&nbsp;&nbsp;&nbsp;└──&nbsp;")); // indentation survives rich paste
 
 console.log("ok");
+
+// aria-label wins over the class name when GitHub provides it
+assert.equal(statusFromIconClass("Merged octicon octicon-git-merge"), "merged");
+assert.equal(statusFromIconClass("Open octicon octicon-git-pull-request fgColor-open"), "open");
+assert.equal(statusFromIconClass(" "), "none");
+console.log("ok (icon labels)");

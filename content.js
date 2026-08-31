@@ -9,16 +9,6 @@ const STATUS_EMOJI = {
   none: "⚪",
 };
 
-// GitHub's octicon name is the only stable state signal in the modal DOM.
-function statusFromIconClass(className) {
-  if (!className) return "none";
-  if (/octicon-git-merge/.test(className)) return "merged";
-  if (/octicon-git-pull-request-draft/.test(className)) return "draft";
-  if (/octicon-git-pull-request-closed/.test(className)) return "closed";
-  if (/octicon-git-pull-request/.test(className)) return "open";
-  return "none";
-}
-
 const escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escapeAttr = (s) => escapeHtml(s).replace(/"/g, "&quot;");
 const nbsp = (s) => s.replace(/ /g, "&nbsp;");
@@ -65,133 +55,137 @@ function buildSummary(rows, heading) {
 }
 
 // --- DOM scraping -----------------------------------------------------------
+//
+// The modal is Primer React with CSS-module class names like
+// `StackState-module__overlayHeader__vrXgX` — the hash changes between
+// deploys, so every selector matches on the readable part only.
 
-const STACK_HEADING = /^\s*Stack\s+#\d+\s*$/;
 const PR_META = /^#(\d+)\s*·\s*(\S+)$/; // "#3423 · fix/some-branch"
+const HEADING = /^\s*Stack\s+#\d+\s*$/;
 
-function findStackDialog(root = document) {
-  const candidates = root.querySelectorAll('[role="dialog"], dialog');
-  for (const el of candidates) {
-    if ([...el.querySelectorAll("*")].some((n) => STACK_HEADING.test(n.textContent || ""))) {
-      return el;
-    }
-  }
-  return null;
+function findOverlay() {
+  const title = document.querySelector('[class*="overlayHeaderTitle"]');
+  if (!title || !HEADING.test(title.textContent || "")) return null;
+  return title.closest('[class*="Overlay-Overlay"]');
 }
 
-function headingText(dialog) {
-  const node = [...dialog.querySelectorAll("*")].find((n) => STACK_HEADING.test(n.textContent || ""));
-  return node ? node.textContent.trim() : "Stack";
+function headingText(overlay) {
+  const title = overlay.querySelector('[class*="overlayHeaderTitle"]');
+  return title ? title.textContent.trim() : "Stack";
 }
 
-/**
- * Reads the modal top-down (top of stack first) and returns rows trunk-first.
- * Anchored on the "#123 · branch" meta line rather than class names, which are
- * content-hashed and change between GitHub deploys.
- */
-function scrapeRows(dialog) {
+// State comes from the icon: its aria-label when GitHub sets one, else the class.
+function statusFromIconClass(hint) {
+  if (!hint || !hint.trim()) return "none";
+  if (/\bMerged\b|fgColor-done|octicon-git-merge/.test(hint)) return "merged";
+  if (/\bClosed\b|fgColor-closed|octicon-git-pull-request-closed/.test(hint)) return "closed";
+  if (/\bDraft\b|octicon-git-pull-request-draft/.test(hint)) return "draft";
+  if (/\bOpen\b|octicon-git-pull-request/.test(hint)) return "open";
+  return "none";
+}
+
+const svgClass = (el) => (el ? String(el.className.baseVal || el.className || "") : "");
+
+/** Reads the modal top-down (top of stack first) and returns rows trunk-first. */
+function scrapeRows(overlay) {
   const rows = [];
-  const seen = new Set();
 
-  for (const node of dialog.querySelectorAll("*")) {
-    if (node.children.length) continue;
-    const m = PR_META.exec((node.textContent || "").trim());
-    if (!m) continue;
+  for (const li of overlay.querySelectorAll("li")) {
+    if (/addToStackItem/.test(String(li.className))) continue;
 
-    const [, number, branch] = m;
-    if (seen.has(number)) continue;
-    seen.add(number);
+    const iconEl = li.querySelector('[class*="octicon"]');
+    // GitHub labels the state icon ("Open", "Merged", "Draft", "Closed");
+    // the class name is the fallback when it doesn't.
+    const iconHint = `${iconEl ? iconEl.getAttribute("aria-label") || "" : ""} ${svgClass(iconEl)}`;
 
-    const item = node.closest("li, [role='listitem'], a, div");
-    const link = item && item.querySelector("a[href*='/pull/']");
-    const icon = item && item.querySelector("[class*='octicon-']");
+    const branchChip = li.querySelector('[data-component="BranchName"], [class*="BranchName"]');
+    if (branchChip && !li.querySelector('a[href*="/pull/"]')) {
+      rows.push({
+        number: "",
+        branch: branchChip.textContent.trim(),
+        title: "",
+        url: "",
+        status: "none",
+        isTrunk: true,
+      });
+      continue;
+    }
+
+    const link = li.querySelector('a[href*="/pull/"]');
+    const meta = PR_META.exec((li.querySelector('[data-component="ActionList.Description"]')?.textContent || "").trim());
+    if (!link || !meta) continue;
 
     rows.push({
-      number,
-      branch,
-      title: titleFor(item, node),
-      url: link ? link.href : `${location.origin}${location.pathname.replace(/\/pull\/\d+.*$/, `/pull/${number}`)}`,
-      status: statusFromIconClass(icon ? icon.getAttribute("class") : ""),
+      number: meta[1],
+      branch: meta[2],
+      title: (li.querySelector('[data-component="ActionList.Item.Label"]')?.textContent || "").trim(),
+      url: link.href,
+      status: statusFromIconClass(iconHint),
       isTrunk: false,
     });
   }
 
-  const trunk = scrapeTrunk(dialog);
-  rows.reverse();
-  if (trunk) rows.unshift(trunk);
-  return rows;
-}
-
-// The title is the text in the row that isn't the "#123 · branch" meta line.
-function titleFor(item, metaNode) {
-  if (!item) return "";
-  const text = [...item.querySelectorAll("*")]
-    .filter((n) => !n.children.length && n !== metaNode)
-    .map((n) => (n.textContent || "").trim())
-    .filter(Boolean)
-    .find((t) => !PR_META.test(t) && t.length > 1);
-  return text || "";
-}
-
-// Trunk sits at the bottom of the modal as a bare branch chip with no PR meta.
-function scrapeTrunk(dialog) {
-  const chips = [...dialog.querySelectorAll("code, [class*='branch'], [class*='Label']")];
-  const last = chips.reverse().find((c) => {
-    const t = (c.textContent || "").trim();
-    return t && !t.includes(" ") && !PR_META.test(t) && !/^#\d+$/.test(t);
-  });
-  if (!last) return null;
-  return { number: "", branch: last.textContent.trim(), title: "", url: "", status: "none", isTrunk: true };
+  return rows.reverse();
 }
 
 // --- Button -----------------------------------------------------------------
 
 const BUTTON_ID = "gh-stack-share-button";
+const TOOLTIP_ID = "gh-stack-share-tooltip";
+const LABEL_IDLE = "Copy stack summary";
 
 const ICON_SHARE =
   '<path d="M3.75 6.75a.75.75 0 0 0-.75.75v6.5c0 .414.336.75.75.75h8.5a.75.75 0 0 0 .75-.75v-6.5a.75.75 0 0 0-.75-.75h-1a.75.75 0 0 1 0-1.5h1A2.25 2.25 0 0 1 14.5 7.5v6.5a2.25 2.25 0 0 1-2.25 2.25h-8.5A2.25 2.25 0 0 1 1.5 14V7.5a2.25 2.25 0 0 1 2.25-2.25h1a.75.75 0 0 1 0 1.5h-1Z"></path><path d="M7.25 10.25a.75.75 0 0 0 1.5 0V2.66l1.97 1.97a.75.75 0 1 0 1.06-1.06L8.53.53a.75.75 0 0 0-1.06 0L4.22 3.57a.75.75 0 0 0 1.06 1.06l1.97-1.97Z"></path>';
 const ICON_CHECK =
   '<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>';
 
-function icon(paths) {
-  return `<svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16" fill="currentColor">${paths}</svg>`;
-}
+const icon = (paths) =>
+  `<svg aria-hidden="true" focusable="false" class="octicon" height="16" viewBox="0 0 16 16" width="16" fill="currentColor">${paths}</svg>`;
 
-function makeButton() {
+/**
+ * Clones the existing header icon button (and its Primer tooltip) so ours
+ * inherits the hashed classes and data-attributes verbatim — no style
+ * guesswork, and it keeps matching when GitHub reskins the modal.
+ */
+function makeButton(sibling, tooltipSibling) {
   const btn = document.createElement("button");
-  btn.id = BUTTON_ID;
   btn.type = "button";
-  btn.className = "btn-octicon";
-  btn.setAttribute("aria-label", "Copy stack summary");
-  btn.title = "Copy stack summary";
-  // Inline fallback: the modal is Primer React with hashed classes, so
-  // btn-octicon alone may not be styled there.
-  btn.style.cssText =
-    "display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;" +
-    "border:0;border-radius:6px;background:transparent;color:var(--fgColor-muted,#59636e);cursor:pointer;";
-  btn.addEventListener("mouseenter", () => {
-    btn.style.background = "var(--bgColor-neutral-muted,#818b981f)";
-  });
-  btn.addEventListener("mouseleave", () => {
-    btn.style.background = "transparent";
-  });
+  if (sibling) {
+    for (const attr of sibling.attributes) {
+      if (["id", "aria-label", "aria-labelledby", "type"].includes(attr.name)) continue;
+      btn.setAttribute(attr.name, attr.value);
+    }
+  }
+  btn.id = BUTTON_ID;
   btn.innerHTML = icon(ICON_SHARE);
   btn.addEventListener("click", onShareClick);
-  return btn;
+
+  const tooltip = tooltipSibling ? tooltipSibling.cloneNode(false) : null;
+  if (tooltip) {
+    tooltip.id = TOOLTIP_ID;
+    tooltip.textContent = LABEL_IDLE;
+    btn.setAttribute("aria-labelledby", TOOLTIP_ID);
+  } else {
+    btn.setAttribute("aria-label", LABEL_IDLE);
+  }
+  return { btn, tooltip };
 }
 
 async function onShareClick(event) {
-  const btn = event.currentTarget;
-  const dialog = findStackDialog();
-  if (!dialog) return;
+  event.preventDefault();
+  event.stopPropagation();
 
-  const rows = scrapeRows(dialog);
+  const btn = event.currentTarget;
+  const overlay = findOverlay();
+  if (!overlay) return;
+
+  const rows = scrapeRows(overlay);
   if (!rows.length) {
     flash(btn, "Nothing to copy");
     return;
   }
 
-  const { text, html } = buildSummary(rows, headingText(dialog) + " summary");
+  const { text, html } = buildSummary(rows, `${headingText(overlay)} summary`);
   try {
     await navigator.clipboard.write([
       new ClipboardItem({
@@ -206,26 +200,35 @@ async function onShareClick(event) {
 }
 
 function flash(btn, message) {
-  btn.title = message;
+  const tooltip = document.getElementById(TOOLTIP_ID);
+  const setLabel = (text) => {
+    if (tooltip) tooltip.textContent = text;
+    else btn.setAttribute("aria-label", text);
+  };
+  setLabel(message);
   btn.innerHTML = icon(ICON_CHECK);
   setTimeout(() => {
-    btn.title = "Copy stack summary";
+    setLabel(LABEL_IDLE);
     btn.innerHTML = icon(ICON_SHARE);
   }, 1500);
 }
 
-function inject(dialog) {
-  if (dialog.querySelector(`#${BUTTON_ID}`)) return;
-  const close = dialog.querySelector('button[aria-label*="lose"], button[aria-label*="ismiss"]');
-  const host = close ? close.parentElement : null;
-  if (!host) return;
-  host.insertBefore(makeButton(), host.firstChild);
+function inject(overlay) {
+  const actions = overlay.querySelector('[class*="overlayHeaderActions"]');
+  if (!actions || actions.querySelector(`#${BUTTON_ID}`)) return;
+
+  const { btn, tooltip } = makeButton(
+    actions.querySelector("button"),
+    actions.querySelector('[class*="Tooltip"]'),
+  );
+  actions.insertBefore(btn, actions.firstChild);
+  if (tooltip) btn.after(tooltip);
 }
 
 function init() {
   const observer = new MutationObserver(() => {
-    const dialog = findStackDialog();
-    if (dialog) inject(dialog);
+    const overlay = findOverlay();
+    if (overlay) inject(overlay);
   });
   observer.observe(document.body, { childList: true, subtree: true });
 }
