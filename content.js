@@ -279,7 +279,7 @@ const setLabel = (btn, text) => btn.setAttribute("aria-label", text);
 
 function flash(btn, message) {
   setLabel(btn, message);
-  btn.innerHTML = icon(ICON_CHECK, "check");
+  btn.innerHTML = icon(ICON_CHECK, "check", "fgColor-success");
   setTimeout(() => {
     setLabel(btn, LABEL_IDLE);
     btn.innerHTML = icon(ICON_SHARE, "copy");
