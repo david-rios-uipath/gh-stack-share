@@ -3,6 +3,7 @@
 
 const STATUS_EMOJI = {
   merged: "\u{1F7E3}",
+  approved: "\u2705",
   closed: "\u{1F534}",
   draft: "\u{1F4DD}",
   open: "\u{1F7E2}",
@@ -128,19 +129,48 @@ function scrapeRows(overlay) {
   return rows.reverse();
 }
 
+// --- Approval state ---------------------------------------------------------
+//
+// The modal carries no review state, so each open PR's hovercard partial
+// (~5 KB) is fetched on click. Its review badge is a success-colored check
+// octicon when the PR is approved, and a dot or comment octicon otherwise.
+
+async function withApprovals(rows) {
+  await Promise.all(
+    rows
+      .filter((row) => row.status === "open" && row.url)
+      .map(async (row) => {
+        try {
+          const res = await fetch(`${new URL(row.url).pathname}/hovercard`, {
+            headers: { "x-requested-with": "XMLHttpRequest" },
+          });
+          if (!res.ok) return;
+          const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+          if (doc.querySelector(".octicon-check.color-fg-success")) row.status = "approved";
+        } catch {
+          // An unreachable hovercard leaves the PR as plain open rather than
+          // blocking the copy.
+        }
+      }),
+  );
+  return rows;
+}
+
 // --- Button -----------------------------------------------------------------
 
 const BUTTON_ID = "gh-stack-share-button";
 const TOOLTIP_ID = "gh-stack-share-tooltip";
 const LABEL_IDLE = "Copy stack summary";
 
+// octicon-copy-16
 const ICON_SHARE =
-  '<path d="M3.75 6.75a.75.75 0 0 0-.75.75v6.5c0 .414.336.75.75.75h8.5a.75.75 0 0 0 .75-.75v-6.5a.75.75 0 0 0-.75-.75h-1a.75.75 0 0 1 0-1.5h1A2.25 2.25 0 0 1 14.5 7.5v6.5a2.25 2.25 0 0 1-2.25 2.25h-8.5A2.25 2.25 0 0 1 1.5 14V7.5a2.25 2.25 0 0 1 2.25-2.25h1a.75.75 0 0 1 0 1.5h-1Z"></path><path d="M7.25 10.25a.75.75 0 0 0 1.5 0V2.66l1.97 1.97a.75.75 0 1 0 1.06-1.06L8.53.53a.75.75 0 0 0-1.06 0L4.22 3.57a.75.75 0 0 0 1.06 1.06l1.97-1.97Z"></path>';
+  '<path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>';
+// octicon-check-16
 const ICON_CHECK =
   '<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>';
 
-const icon = (paths) =>
-  `<svg aria-hidden="true" focusable="false" class="octicon" height="16" viewBox="0 0 16 16" width="16" fill="currentColor">${paths}</svg>`;
+const icon = (paths, name) =>
+  `<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-${name}" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align: text-bottom;">${paths}</svg>`;
 
 /**
  * Clones the existing header icon button (and its Primer tooltip) so ours
@@ -157,7 +187,7 @@ function makeButton(sibling, tooltipSibling) {
     }
   }
   btn.id = BUTTON_ID;
-  btn.innerHTML = icon(ICON_SHARE);
+  btn.innerHTML = icon(ICON_SHARE, "copy");
   btn.addEventListener("click", onShareClick);
 
   const tooltip = tooltipSibling ? tooltipSibling.cloneNode(false) : null;
@@ -171,7 +201,7 @@ function makeButton(sibling, tooltipSibling) {
   return { btn, tooltip };
 }
 
-async function onShareClick(event) {
+function onShareClick(event) {
   event.preventDefault();
   event.stopPropagation();
 
@@ -185,18 +215,25 @@ async function onShareClick(event) {
     return;
   }
 
-  const { text, html } = buildSummary(rows, `${headingText(overlay)} summary`);
-  try {
-    await navigator.clipboard.write([
+  const heading = `${headingText(overlay)} summary`;
+  const summary = withApprovals(rows).then((enriched) => buildSummary(enriched, heading));
+  const blob = (type, pick) =>
+    summary.then((s) => new Blob([pick(s)], { type }));
+
+  // ClipboardItem takes promises, so the write call itself stays synchronous
+  // and keeps the click's user activation while the hovercards are fetched.
+  navigator.clipboard
+    .write([
       new ClipboardItem({
-        "text/plain": new Blob([text], { type: "text/plain" }),
-        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": blob("text/plain", (s) => s.text),
+        "text/html": blob("text/html", (s) => s.html),
       }),
-    ]);
-  } catch {
-    await navigator.clipboard.writeText(text); // rich copy blocked; plain still works
-  }
-  flash(btn, "Copied");
+    ])
+    .catch(async () => navigator.clipboard.writeText((await summary).text))
+    .then(
+      () => flash(btn, "Copied"),
+      () => flash(btn, "Copy failed"),
+    );
 }
 
 function flash(btn, message) {
@@ -206,10 +243,10 @@ function flash(btn, message) {
     else btn.setAttribute("aria-label", text);
   };
   setLabel(message);
-  btn.innerHTML = icon(ICON_CHECK);
+  btn.innerHTML = icon(ICON_CHECK, "check");
   setTimeout(() => {
     setLabel(LABEL_IDLE);
-    btn.innerHTML = icon(ICON_SHARE);
+    btn.innerHTML = icon(ICON_SHARE, "copy");
   }, 1500);
 }
 

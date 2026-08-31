@@ -14,7 +14,7 @@ Stack #3456 summary
         └── 📝 fix(canvas): hide unreferenced runtime inputs #3423  ·  https://github.com/...
 ```
 
-Status: 🟣 merged · 🔴 closed · 📝 draft · 🟢 open · ⚪ no PR.
+Status: 🟣 merged · ✅ approved · 🔴 closed · 📝 draft · 🟢 open · ⚪ no PR.
 
 Format follows [`us share`](https://github.com/UiPath/stacked-prs/pull/101).
 
@@ -33,8 +33,10 @@ node test.js
 
 ## Notes
 
-- Approval state and per-branch diffstats aren't in the modal DOM, so they're
-  omitted. `us share` shows them because it has API access.
+- Approval state isn't in the modal DOM. On click, each open PR's hovercard
+  partial (~5 KB, same-origin, uses your existing session) is fetched and
+  checked for the approved review badge. No token, works on private repos.
+- Per-branch diffstats are still omitted — they aren't reachable that cheaply.
 - Selectors use Primer's `data-component` attributes and partial class matches
   (`[class*="overlayHeader"]`) — GitHub's CSS-module class names are
   content-hashed and change between deploys.

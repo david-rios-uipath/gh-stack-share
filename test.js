@@ -41,3 +41,12 @@ assert.equal(statusFromIconClass("Merged octicon octicon-git-merge"), "merged");
 assert.equal(statusFromIconClass("Open octicon octicon-git-pull-request fgColor-open"), "open");
 assert.equal(statusFromIconClass(" "), "none");
 console.log("ok (icon labels)");
+
+// approved renders with a check and still links the PR
+const approved = buildSummary(
+  [{ number: "3455", branch: "feat/x", title: "feat: thing", url: "https://x/pull/3455", status: "approved" }],
+  "Stack #1 summary",
+);
+assert.ok(approved.text.includes("✅ feat: thing #3455"));
+assert.ok(approved.html.includes('✅ <a href="https://x/pull/3455">feat: thing</a>'));
+console.log("ok (approved)");
