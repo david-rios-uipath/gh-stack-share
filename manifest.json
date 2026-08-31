@@ -3,12 +3,23 @@
   "name": "GitHub Stack Share",
   "version": "0.1.0",
   "description": "Adds a share button to GitHub's stacked-PR modal that copies a Slack-ready stack summary.",
-  "permissions": ["clipboardWrite"],
+  "permissions": [
+    "clipboardWrite",
+    "storage"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://github.com/*/*/pull/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://github.com/*/*/pull/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
 }

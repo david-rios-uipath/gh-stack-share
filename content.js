@@ -55,6 +55,21 @@ function buildSummary(rows, heading) {
   return { text: renderText(rows, heading), html: renderHtml(rows, heading) };
 }
 
+// --- Settings ---------------------------------------------------------------
+//
+// Read eagerly and kept in sync, so the click handler stays synchronous and
+// keeps its user activation for the clipboard write.
+
+const settings = { includeTrunk: true };
+
+if (typeof chrome !== "undefined" && chrome.storage) {
+  chrome.storage.sync.get(settings, (stored) => Object.assign(settings, stored));
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "sync") return;
+    for (const [key, { newValue }] of Object.entries(changes)) settings[key] = newValue;
+  });
+}
+
 // --- DOM scraping -----------------------------------------------------------
 //
 // The modal is Primer React with CSS-module class names like
@@ -246,13 +261,14 @@ function onShareClick(event) {
     return;
   }
 
+  const visible = settings.includeTrunk ? rows : rows.filter((row) => !row.isTrunk);
   const heading = `${headingText(overlay)} summary`;
   // Only show the spinner if the prefetch hasn't already landed.
   const pending = setTimeout(() => {
     setLabel(btn, "Copying\u2026");
     btn.innerHTML = icon(ICON_SPINNER, "sync", SPIN_CLASS);
   }, 150);
-  const summary = withApprovals(rows).then((enriched) => {
+  const summary = withApprovals(visible).then((enriched) => {
     clearTimeout(pending);
     return buildSummary(enriched, heading);
   });

@@ -23,6 +23,14 @@ Status: 🟣 merged · ✅ approved · 🔴 closed · 📝 draft · 🟢 open ·
 3. Open a PR that belongs to a stack, open the stack modal, click the share
    icon in the modal header
 
+## Options
+
+Right-click the extension → **Options** (or the Details page in
+`chrome://extensions`):
+
+- **Include the trunk branch** — on by default. Uncheck to start the copied
+  summary at the first pull request.
+
 ## Test
 
 ```

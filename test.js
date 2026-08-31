@@ -50,3 +50,17 @@ const approved = buildSummary(
 assert.ok(approved.text.includes("✅ feat: thing #3455"));
 assert.ok(approved.html.includes('✅ <a href="https://x/pull/3455">feat: thing</a>'));
 console.log("ok (approved)");
+
+// dropping the trunk row shifts the first PR back to zero indent
+const noTrunk = buildSummary(
+  [
+    { number: "3419", branch: "a", title: "first", url: "https://x/pull/3419", status: "open" },
+    { number: "3422", branch: "b", title: "second", url: "https://x/pull/3422", status: "open" },
+  ],
+  "Stack #1 summary",
+);
+assert.equal(
+  noTrunk.text,
+  ["Stack #1 summary", "🟢 first #3419  ·  https://x/pull/3419", "└── 🟢 second #3422  ·  https://x/pull/3422"].join("\n"),
+);
+console.log("ok (no trunk)");
